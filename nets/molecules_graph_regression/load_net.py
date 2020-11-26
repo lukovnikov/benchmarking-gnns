@@ -10,6 +10,7 @@ from nets.molecules_graph_regression.graphsage_net import GraphSageNet
 from nets.molecules_graph_regression.gin_net import GINNet
 from nets.molecules_graph_regression.mo_net import MoNet as MoNet_
 from nets.molecules_graph_regression.mlp_net import MLPNet
+from nets.molecules_graph_regression.resrgat import ResRGATNet
 from nets.molecules_graph_regression.ring_gnn_net import RingGNNNet
 from nets.molecules_graph_regression.three_wl_gnn_net import ThreeWLGNNNet
 
@@ -40,6 +41,9 @@ def RingGNN(net_params):
 def ThreeWLGNN(net_params):
     return ThreeWLGNNNet(net_params)
 
+def ResRGAT(net_params):
+    return ResRGATNet(net_params)
+
 def gnn_model(MODEL_NAME, net_params):
     models = {
         'GatedGCN': GatedGCN,
@@ -50,7 +54,8 @@ def gnn_model(MODEL_NAME, net_params):
         'MoNet': MoNet,
         'MLP': MLP,
         'RingGNN': RingGNN,
-        '3WLGNN': ThreeWLGNN
+        '3WLGNN': ThreeWLGNN,
+        "ResRGAT": ResRGAT,
     }
         
     return models[MODEL_NAME](net_params)

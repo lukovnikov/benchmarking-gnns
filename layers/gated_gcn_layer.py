@@ -30,6 +30,8 @@ class GatedGCNLayer(nn.Module):
         self.E = nn.Linear(input_dim, output_dim, bias=True)
         self.bn_node_h = nn.BatchNorm1d(output_dim)
         self.bn_node_e = nn.BatchNorm1d(output_dim)
+        # self.bn_node_h = nn.LayerNorm(output_dim)
+        # self.bn_node_e = nn.LayerNorm(output_dim)
 
     def message_func(self, edges):
         Bh_j = edges.src['Bh']    

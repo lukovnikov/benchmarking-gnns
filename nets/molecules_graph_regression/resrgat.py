@@ -32,7 +32,7 @@ class ResRGATNet(torch.nn.Module):
         dropoutemb = params["in_feat_dropout"]
         dropout_red = params["dropout_red"] if "dropout_red" in params else 0.
         dropout_attn = params["dropout_attn"] if "dropout_attn" in params else 0.
-        dropout_act = params["dropout_act"] if "dropout_act" in params else 0.
+        # dropout_act = params["dropout_act"] if "dropout_act" in params else 0.
         rdim = params["rdim"] if "rdim" in params else self.hdim
         usevallin = params["usevallin"] if "usevallin" in params else False
         cat_rel = params["cat_rel"] if "cat_rel" in params else True
@@ -55,12 +55,14 @@ class ResRGATNet(torch.nn.Module):
 
         self.layers = torch.nn.ModuleList([
             ResRGATCell(self.hdim, numrels=1, numheads=numheads,
-                      dropout=dropout, dropout_red=dropout_red, dropout_attn=dropout_attn, dropout_act=dropout_act,
+                      dropout=0., dropout_red=dropout_red, dropout_attn=dropout_attn,
+                      dropout_act=dropout,
                       rdim=rdim, usevallin=usevallin, norel=self.norel,
                       cat_rel=cat_rel, cat_tgt=cat_tgt, use_gate=use_gate,
                       skipatt=skipatt)
             for _ in range(self.numlayers)
         ])
+        self.dropout = torch.nn.Dropout(dropout)
         self.MLP_layer = MLPReadout(self.hdim, 1)   # 1 out dim since regression problem
 
     def init_node_states(self, g, batsize, device):
@@ -93,6 +95,8 @@ class ResRGATNet(torch.nn.Module):
             hg = dgl.mean_nodes(g, 'h')
         else:
             hg = dgl.mean_nodes(g, 'h')  # default readout is mean nodes
+
+        hg = self.dropout(hg)
 
         return self.MLP_layer(hg)
 

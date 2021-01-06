@@ -27,7 +27,7 @@
         "hidden_dim": 70,
         "out_dim": 70,
         "residual": true,
-        "edge_feat": false,
+        "edge_feat": true,
         "readout": "mean",
         "in_feat_dropout": 0.0,
         "dropout": 0.0,

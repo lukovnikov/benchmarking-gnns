@@ -13,7 +13,7 @@
         "seed": 41,
         "epochs": 1000,
         "batch_size": 128,
-        "init_lr": 0.0001,
+        "init_lr": 0.00025,
         "lr_reduce_factor": 0.5,
         "lr_schedule_patience": 10,
         "min_lr": 1e-6,
@@ -26,14 +26,14 @@
         "L": 16,
         "hidden_dim": 272,
         "out_dim": 272,
-        "edge_feat": false,
+        "edge_feat": true,
         "readout": "mean",
         "in_feat_dropout": 0.0,
-        "dropout": 0.5,
+        "dropout": 0.0,
         "batch_norm": true,
         "pos_enc": false,
         "n_heads": 4,
-        "use_gate": true,
+        "use_gate": false,
         "skipatt": false
     }
 }

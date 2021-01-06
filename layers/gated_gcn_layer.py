@@ -30,13 +30,14 @@ class GatedGCNLayer(nn.Module):
         self.E = nn.Linear(input_dim, output_dim, bias=True)
         self.bn_node_h = nn.BatchNorm1d(output_dim)
         self.bn_node_e = nn.BatchNorm1d(output_dim)
-        # self.bn_node_h = nn.LayerNorm(output_dim)
+        # self.bn_node_h = nn.LayerNorm(output_dim)       # TODO: remove and put back BN form previous two lines
         # self.bn_node_e = nn.LayerNorm(output_dim)
 
     def message_func(self, edges):
         Bh_j = edges.src['Bh']    
         e_ij = edges.data['Ce'] +  edges.src['Dh'] + edges.dst['Eh'] # e_ij = Ce_ij + Dhi + Ehj
-        edges.data['e'] = e_ij
+        # e_ij = edges.data['e'] + edges.src['Dh'] # TODO: remove and put previous line back
+        edges.data['e'] = e_ij        # TODO: put this back
         return {'Bh_j' : Bh_j, 'e_ij' : e_ij}
 
     def reduce_func(self, nodes):
@@ -44,8 +45,8 @@ class GatedGCNLayer(nn.Module):
         Bh_j = nodes.mailbox['Bh_j']
         e = nodes.mailbox['e_ij'] 
         sigma_ij = torch.sigmoid(e) # sigma_ij = sigmoid(e_ij)
-        #h = Ah_i + torch.mean( sigma_ij * Bh_j, dim=1 ) # hi = Ahi + mean_j alpha_ij * Bhj 
-        h = Ah_i + torch.sum( sigma_ij * Bh_j, dim=1 ) / ( torch.sum( sigma_ij, dim=1 ) + 1e-6 )  # hi = Ahi + sum_j eta_ij/sum_j' eta_ij' * Bhj <= dense attention       
+        # h = Ah_i + torch.mean( sigma_ij * Bh_j, dim=1 ) # hi = Ahi + mean_j alpha_ij * Bhj
+        h = Ah_i + torch.sum( sigma_ij * Bh_j, dim=1 ) / ( torch.sum( sigma_ij, dim=1 ) + 1e-6 )  # hi = Ahi + sum_j eta_ij/sum_j' eta_ij' * Bhj <= dense attention
         return {'h' : h}
     
     def forward(self, g, h, e):
@@ -59,24 +60,24 @@ class GatedGCNLayer(nn.Module):
         g.ndata['Dh'] = self.D(h)
         g.ndata['Eh'] = self.E(h) 
         g.edata['e']  = e 
-        g.edata['Ce'] = self.C(e) 
+        g.edata['Ce'] = self.C(e)     # put back
         g.update_all(self.message_func,self.reduce_func) 
         h = g.ndata['h'] # result of graph convolution
         e = g.edata['e'] # result of graph convolution
         
         if self.batch_norm:
             h = self.bn_node_h(h) # batch normalization  
-            e = self.bn_node_e(e) # batch normalization  
+            e = self.bn_node_e(e) # batch normalization   # TODO: put back
         
         h = F.relu(h) # non-linear activation
-        e = F.relu(e) # non-linear activation
+        e = F.relu(e) # non-linear activation     # TODO: put back
         
         if self.residual:
             h = h_in + h # residual connection
-            e = e_in + e # residual connection
+            e = e_in + e # residual connection    # TODO: put back
         
         h = F.dropout(h, self.dropout, training=self.training)
-        e = F.dropout(e, self.dropout, training=self.training)
+        e = F.dropout(e, self.dropout, training=self.training)    # TODO: put back
         
         return h, e
     

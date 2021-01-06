@@ -44,12 +44,17 @@ class ResRGATNet(torch.nn.Module):
         self.numrepsperlayer = params["L"]
         self.device = params['device']
 
+        self.numlayers = self.numrepsperlayer
+        self.numrepsperlayer = 1
+
         self.embedding_h = nn.Embedding(num_atom_type, self.hdim)
 
         if self.edge_feat:
-            self.embedding_e = nn.Embedding(num_bond_type, self.hdim)
+            self.embedding_e = nn.Embedding(num_bond_type+1, self.hdim)
+            self.self_edge_id = num_bond_type
         else:
             self.embedding_e = nn.Linear(1, self.hdim)
+            self.self_edge_id = num_bond_type
 
         self.in_feat_dropout = nn.Dropout(dropoutemb)
 
@@ -69,6 +74,11 @@ class ResRGATNet(torch.nn.Module):
         self.layers[0].init_node_states(g, batsize, device)
 
     def forward(self, g, h, e, h_pos_enc=None):
+        g = g.local_var()
+        extra_e = torch.ones(h.size(0), device=e.device, dtype=e.dtype) * self.self_edge_id
+        e = torch.cat([e, extra_e], 0)
+        nodeids = torch.arange(h.size(0), dtype=h.dtype, device=h.device)
+        g.add_edges(nodeids, nodeids)
         # input embedding
         h = self.embedding_h(h)
         h = self.in_feat_dropout(h)

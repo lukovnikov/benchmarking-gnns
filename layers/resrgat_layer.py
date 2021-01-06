@@ -142,6 +142,7 @@ class ResRGATCell(torch.nn.Module):
         x = self.activation(x)
         # x = self.dropout_act(x)
         _x = self.linB(x)
+        # _x = self.ln2(_x)
         _x = self.dropout(_x)
         if self.use_gate:
             g = self.linGate(x)

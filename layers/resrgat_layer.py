@@ -69,10 +69,92 @@ class MultiHeadAttention(torch.nn.Module):
         return red
 
 
+
+GATE_BIAS = 0
+class DGRUCell(torch.nn.Module):
+    zoneout_frac = .7
+    def __init__(self, dim, bias=True, dropout=0., gate_bias=GATE_BIAS, use_layernorm=True, **kw):
+        super(DGRUCell, self).__init__(**kw)
+        self.dim, self.bias = dim, bias
+        self.gateW = torch.nn.Linear(dim * 2, dim * 5, bias=bias)
+        self.gateU = torch.nn.Linear(dim * 2, dim, bias=bias)
+        self.sm = torch.nn.Softmax(-1)
+        self.dropout = torch.nn.Dropout(dropout)
+        self.register_buffer("dropout_mask", torch.ones(self.dim * 2))
+        self.gate_bias = gate_bias
+
+        self.ln = None
+        self.ln2 = None
+        if use_layernorm:
+            self.ln = torch.nn.LayerNorm(dim * 2)
+            self.ln2 = torch.nn.LayerNorm(dim * 2)
+
+    def reset_dropout(self):
+        pass
+
+    def forward(self, x, h):
+        inp = torch.cat([x, h], 1)
+        if self.ln is not None:
+            inp = self.ln(inp)
+        inp = self.dropout(inp)
+        inp = inp * self.dropout_mask[None, :]
+        gates = self.gateW(inp)
+        gates = list(gates.chunk(5, 1))
+        rx = torch.sigmoid(gates[0])
+        rh = torch.sigmoid(gates[1])
+        z_gates = gates[2:5]
+        z_gates[2] = z_gates[2] - self.gate_bias
+        z = torch.softmax(torch.stack(z_gates, -1), -1)
+        inp = torch.cat([x * rx, h * rh], 1)
+        if self.ln2 is not None:
+            inp = self.ln2(inp)
+        inp = self.dropout(inp)
+        inp = inp * self.dropout_mask[None, :]
+        u = self.gateU(inp)
+        u = torch.tanh(u)
+        h_new = torch.stack([x, h, u], 2) * z
+        h_new = h_new.sum(-1)
+        return h_new
+
+
+class GatedCatMap(torch.nn.Module):
+    def __init__(self, indim, odim, dropout=0., activation=None, zdim=None, use_layernorm=True, gate_bias=GATE_BIAS, **kw):
+        super(GatedCatMap, self).__init__(**kw)
+        self.dim = indim
+        self.odim = odim
+        self.zdim = self.dim * 1 if zdim is None else zdim
+
+        self.activation = torch.nn.CELU() if activation is None else activation
+
+        self.linA = torch.nn.Linear(self.dim, self.zdim)
+        self.linB = torch.nn.Linear(self.zdim, self.odim)
+        self.linMix = torch.nn.Linear(self.zdim, self.odim)
+        self.linMix.bias.data.fill_(gate_bias)
+
+        self.dropout = torch.nn.Dropout(dropout)
+
+        self.ln = None
+        if use_layernorm:
+            self.ln = torch.nn.LayerNorm(indim)
+
+    def forward(self, *inps):
+        h = inps[0]
+        _h = torch.cat(inps, -1)
+        if self.ln is not None:
+            _h = self.ln(_h)
+        _h = self.dropout(_h)
+        _cand = self.linA(_h)
+        _cand = self.activation(_cand)
+        cand = self.linB(self.dropout(_cand))
+        mix = torch.sigmoid(self.linMix(_cand))
+        ret = h * mix + cand * (1 - mix)
+        return ret
+
+
 class ResRGATCell(torch.nn.Module):
     def __init__(self, hdim, numrels=1, numheads=4, dropout=0., dropout_attn=0., dropout_act=0.,
                  dropout_red=0., rdim=None, usevallin=False, norel=False,
-                 cat_rel=True, cat_tgt=False, use_gate=False,
+                 cat_rel=True, cat_tgt=False, use_gate=False, use_sgru=True,
                  skipatt=False, **kw):
         super(ResRGATCell, self).__init__(**kw)
         self.cat_rel, self.cat_tgt = cat_rel, cat_tgt
@@ -84,6 +166,7 @@ class ResRGATCell(torch.nn.Module):
         self.norel = norel
         self.skipatt = skipatt
         self.use_gate = use_gate
+        self.use_sgru = use_sgru
 
         if norel:
             self.cat_rel = False
@@ -102,6 +185,10 @@ class ResRGATCell(torch.nn.Module):
         if self.use_gate:
             self.linGate = torch.nn.Linear(self.zdim, self.hdim)
             self.linGate.bias.data.fill_(3.)
+
+        if self.use_sgru:
+            self.sgru = DGRUCell(self.hdim, dropout=dropout)
+            # self.sgru = GatedCatMap(self.hdim*2, self.hdim, dropout=dropout)
 
         self.attention = MultiHeadAttention(self.hdim, (self.hdim + self.rdim) if self.cat_rel else self.hdim,
                                             self.hdim, self.hdim, numheads=numheads, use_layernorm=False,
@@ -170,7 +257,10 @@ class ResRGATCell(torch.nn.Module):
         return {"red": red}
 
     def apply_node_func(self, nodes):
-        h = nodes.data["red"]
+        if self.use_sgru:
+            h = self.sgru(nodes.data["h"], nodes.data["red"])
+        else:
+            h = nodes.data["red"]
         return {"h": h}
 
     def forward(self, g, step=0):

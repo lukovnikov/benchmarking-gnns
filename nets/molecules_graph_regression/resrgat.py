@@ -44,8 +44,12 @@ class ResRGATNet(torch.nn.Module):
         self.numrepsperlayer = params["L"]
         self.device = params['device']
 
-        self.numlayers = self.numrepsperlayer
-        self.numrepsperlayer = 1
+        if self.numrepsperlayer > 8:
+            self.numlayers = int(self.numrepsperlayer / 2)
+            self.numrepsperlayer = 2
+        else:
+            self.numlayers = self.numrepsperlayer
+            self.numrepsperlayer = 1
 
         self.embedding_h = nn.Embedding(num_atom_type, self.hdim)
 

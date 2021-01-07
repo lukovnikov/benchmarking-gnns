@@ -64,8 +64,8 @@ class ResRGATNet(torch.nn.Module):
 
         self.layers = torch.nn.ModuleList([
             ResRGATCell(self.hdim, numrels=1, numheads=numheads,
-                      dropout=0., dropout_red=dropout_red, dropout_attn=dropout_attn,
-                      dropout_act=dropout,
+                      dropout=dropout, dropout_red=dropout_red, dropout_attn=dropout_attn,
+                      dropout_act=0.,
                       rdim=rdim, usevallin=usevallin, norel=self.norel,
                       cat_rel=cat_rel, cat_tgt=cat_tgt, use_gate=use_gate,
                       skipatt=skipatt)

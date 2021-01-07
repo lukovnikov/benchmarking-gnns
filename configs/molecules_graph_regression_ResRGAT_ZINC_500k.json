@@ -10,7 +10,7 @@
     "out_dir": "out/molecules_graph_regression/",
     
     "params": {
-        "seed": 159463,
+        "seed": 41,
         "epochs": 1000,
         "batch_size": 128,
         "init_lr": 0.0005,
@@ -24,12 +24,12 @@
     
     "net_params": {
         "L": 16,
-        "hidden_dim": 60,
-        "out_dim": 60,
+        "hidden_dim": 57,
+        "out_dim": 57,
         "edge_feat": true,
         "readout": "mean",
-        "in_feat_dropout": 0.0,
-        "dropout": 0.0,
+        "in_feat_dropout": 0.1,
+        "dropout": 0.1,
         "batch_norm": true,
         "pos_enc": false,
         "n_heads": 3,

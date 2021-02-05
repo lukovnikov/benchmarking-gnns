@@ -6,6 +6,8 @@
 """
     IMPORTING LIBS
 """
+from copy import deepcopy
+
 import dgl
 
 import numpy as np
@@ -119,6 +121,7 @@ def train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs):
     writer = SummaryWriter(log_dir=log_dir)
 
     # setting seeds
+    print(f"seed: {params['seed']}")
     random.seed(params['seed'])
     np.random.seed(params['seed'])
     torch.manual_seed(params['seed'])
@@ -141,7 +144,8 @@ def train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs):
                                                      verbose=True)
     
     epoch_train_losses, epoch_val_losses = [], []
-    epoch_train_MAEs, epoch_val_MAEs = [], [] 
+    epoch_train_MAEs, epoch_val_MAEs = [], []
+    epoch_test_MAEs = []
     
     # batching exception for Diffpool
     drop_last = True if MODEL_NAME == 'DiffPool' else False
@@ -184,6 +188,7 @@ def train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs):
                 epoch_val_losses.append(epoch_val_loss)
                 epoch_train_MAEs.append(epoch_train_mae)
                 epoch_val_MAEs.append(epoch_val_mae)
+                epoch_test_MAEs.append(epoch_test_mae)
 
                 writer.add_scalar('train/_loss', epoch_train_loss, epoch)
                 writer.add_scalar('val/_loss', epoch_val_loss, epoch)
@@ -192,6 +197,7 @@ def train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs):
                 writer.add_scalar('test/_mae', epoch_test_mae, epoch)
                 writer.add_scalar('learning_rate', optimizer.param_groups[0]['lr'], epoch)
 
+                print("")
                         
                 t.set_postfix(time=time.time()-start, lr=optimizer.param_groups[0]['lr'],
                               train_loss=epoch_train_loss, val_loss=epoch_val_loss,
@@ -229,6 +235,18 @@ def train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs):
     except KeyboardInterrupt:
         print('-' * 89)
         print('Exiting from training early because of KeyboardInterrupt')
+
+    bestpos = 0
+    bestvalmae = np.infty
+    for pos, valmae in enumerate(epoch_val_MAEs):
+        if valmae < bestvalmae:
+            bestvalmae = valmae
+            bestpos = pos
+    val_argm = np.argmin(epoch_val_MAEs)
+    print(f"Best epoch: {val_argm}\n"
+          f"  - training MAE: {epoch_train_MAEs[bestpos]}\n"
+          f"  - validation MAE: {epoch_val_MAEs[bestpos]}\n"
+          f"  - test MAE: {epoch_test_MAEs[bestpos]}")
     
     _, test_mae = evaluate_network(model, device, test_loader, epoch)
     _, train_mae = evaluate_network(model, device, train_loader, epoch)
@@ -429,7 +447,13 @@ def main():
         os.makedirs(out_dir + 'configs')
 
     net_params['total_param'] = view_model_param(MODEL_NAME, net_params)
-    train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs)
+
+    if isinstance(params['seed'], list):        # run for all the seeds:
+        print(f"running for seeds: {params['seed']}")
+        for seed in params['seed']:
+            _params = deepcopy(params)
+            _params['seed'] = seed
+            train_val_pipeline(MODEL_NAME, dataset, _params, net_params, dirs)
 
     
     

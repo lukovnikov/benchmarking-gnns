@@ -10,12 +10,12 @@
     "out_dir": "out/molecules_graph_regression/",
     
     "params": {
-        "seed": 159456,
+        "seed": 41,
         "epochs": 1000,
         "batch_size": 128,
         "init_lr": 0.001,
         "lr_reduce_factor": 0.5,
-        "lr_schedule_patience": 10,
+        "lr_schedule_patience": 20,
         "min_lr": 1e-5,
         "weight_decay": 0.0,
         "print_epoch_interval": 5,
@@ -24,16 +24,18 @@
     
     "net_params": {
         "L": 4,
-        "hidden_dim": 36,
-        "out_dim": 36,
+        "hidden_dim": 64,
+        "out_dim": 64,
         "edge_feat": true,
-        "readout": "mean",
+        "readout": "sum",
         "in_feat_dropout": 0.0,
         "dropout": 0.0,
         "batch_norm": true,
         "pos_enc": false,
         "n_heads": 2,
         "use_gate": false,
-        "skipatt": false
+        "skipatt": false,
+        "use_sgru": false,
+        "use_logdegree": false
     }
 }

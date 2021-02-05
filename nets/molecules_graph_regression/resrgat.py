@@ -14,6 +14,77 @@ from layers.resrgat_layer import ResRGATCell
     https://arxiv.org/pdf/1711.07553v2.pdf
 """
 from layers.mlp_readout_layer import MLPReadout
+from dgl.nn.pytorch.glob import Set2Set
+#
+# class Set2Set(torch.nn.Module):
+#     r"""
+#     Set2Set global pooling operator from the `"Order Matters: Sequence to sequence for sets"
+#     <https://arxiv.org/abs/1511.06391>`_ paper. This pooling layer performs the following operation
+#     .. math::
+#         \mathbf{q}_t &= \mathrm{LSTM}(\mathbf{q}^{*}_{t-1})
+#         \alpha_{i,t} &= \mathrm{softmax}(\mathbf{x}_i \cdot \mathbf{q}_t)
+#         \mathbf{r}_t &= \sum_{i=1}^N \alpha_{i,t} \mathbf{x}_i
+#         \mathbf{q}^{*}_t &= \mathbf{q}_t \, \Vert \, \mathbf{r}_t,
+#     where :math:`\mathbf{q}^{*}_T` defines the output of the layer with twice
+#     the dimensionality as the input.
+#     Arguments
+#     ---------
+#         input_dim: int
+#             Size of each input sample.
+#         hidden_dim: int, optional
+#             the dim of set representation which corresponds to the input dim of the LSTM in Set2Set.
+#             This is typically the sum of the input dim and the lstm output dim. If not provided, it will be set to :obj:`input_dim*2`
+#         steps: int, optional
+#             Number of iterations :math:`T`. If not provided, the number of nodes will be used.
+#         num_layers : int, optional
+#             Number of recurrent layers (e.g., :obj:`num_layers=2` would mean stacking two LSTMs together)
+#             (Default, value = 1)
+#     """
+#
+#     def __init__(self, nin, nhid=None, steps=None, num_layers=1, activation=None, device='cpu'):
+#         super(Set2Set, self).__init__()
+#         self.steps = steps
+#         self.nin = nin
+#         self.nhid = nin * 2 if nhid is None else nhid
+#         if self.nhid <= self.nin:
+#             raise ValueError('Set2Set hidden_dim should be larger than input_dim')
+#         # the hidden is a concatenation of weighted sum of embedding and LSTM output
+#         self.lstm_output_dim = self.nhid - self.nin
+#         self.num_layers = num_layers
+#         self.lstm = nn.LSTM(self.nhid, self.nin, num_layers=num_layers, batch_first=True).to(device)
+#         self.softmax = nn.Softmax(dim=1)
+#
+#     def forward(self, x):
+#         r"""
+#         Applies the pooling on input tensor x
+#         Arguments
+#         ----------
+#             x: torch.FloatTensor
+#                 Input tensor of size (B, N, D)
+#         Returns
+#         -------
+#             x: `torch.FloatTensor`
+#                 Tensor resulting from the  set2set pooling operation.
+#         """
+#
+#         batch_size = x.shape[0]
+#         n = self.steps or x.shape[1]
+#
+#         h = (x.new_zeros((self.num_layers, batch_size, self.nin)),
+#              x.new_zeros((self.num_layers, batch_size, self.nin)))
+#
+#         q_star = x.new_zeros(batch_size, 1, self.nhid)
+#
+#         for i in range(n):
+#             # q: batch_size x 1 x input_dim
+#             q, h = self.lstm(q_star, h)
+#             # e: batch_size x n x 1
+#             e = torch.matmul(x, torch.transpose(q, 1, 2))
+#             a = self.softmax(e)
+#             r = torch.sum(a * x, dim=1, keepdim=True)
+#             q_star = torch.cat([q, r], dim=-1)
+#
+#         return torch.squeeze(q_star, dim=1)
 
 
 class ResRGATNet(torch.nn.Module):
@@ -44,6 +115,9 @@ class ResRGATNet(torch.nn.Module):
         self.numrepsperlayer = params["L"]
         self.device = params['device']
 
+        use_sgru = params["use_sgru"] if "use_sgru" in params else False
+        use_logdegree = params["use_logdegree"] if "use_logdegree" in params else False
+
         if self.numrepsperlayer > 8:
             self.numlayers = int(self.numrepsperlayer / 2)
             self.numrepsperlayer = 2
@@ -68,11 +142,14 @@ class ResRGATNet(torch.nn.Module):
                       dropout_act=0.,
                       rdim=rdim, usevallin=usevallin, norel=self.norel,
                       cat_rel=cat_rel, cat_tgt=cat_tgt, use_gate=use_gate,
-                      skipatt=skipatt)
+                      skipatt=skipatt, use_sgru=use_sgru, use_logdegree=use_logdegree)
             for _ in range(self.numlayers)
         ])
         self.dropout = torch.nn.Dropout(dropout)
         self.MLP_layer = MLPReadout(self.hdim, 1)   # 1 out dim since regression problem
+
+        if self.readout == "set2set":
+            self.set2set = Set2Set(self.hdim, n_iters=10, n_layers=1)
 
     def init_node_states(self, g, batsize, device):
         self.layers[0].init_node_states(g, batsize, device)
@@ -107,6 +184,8 @@ class ResRGATNet(torch.nn.Module):
             hg = dgl.max_nodes(g, 'h')
         elif self.readout == "mean":
             hg = dgl.mean_nodes(g, 'h')
+        elif self.readout == "set2set":
+            hg = self.set_to_set(g)
         else:
             hg = dgl.mean_nodes(g, 'h')  # default readout is mean nodes
 

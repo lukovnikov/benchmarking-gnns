@@ -154,7 +154,8 @@ class GatedCatMap(torch.nn.Module):
 class ResRGATCell(torch.nn.Module):
     def __init__(self, hdim, numrels=1, numheads=4, dropout=0., dropout_attn=0., dropout_act=0.,
                  dropout_red=0., rdim=None, usevallin=False, norel=False,
-                 cat_rel=True, cat_tgt=False, use_gate=False, use_sgru=True,
+                 cat_rel=True, cat_tgt=False, use_gate=False, use_sgru=False,
+                 use_logdegree=False,
                  skipatt=False, **kw):
         super(ResRGATCell, self).__init__(**kw)
         self.cat_rel, self.cat_tgt = cat_rel, cat_tgt
@@ -167,6 +168,12 @@ class ResRGATCell(torch.nn.Module):
         self.skipatt = skipatt
         self.use_gate = use_gate
         self.use_sgru = use_sgru
+
+        self.use_logdegree = use_logdegree
+        if self.use_logdegree:
+            self.maxlogdegree = 50
+            self.logdegree_mult = 10
+            self.degree_emb = torch.nn.Embedding(self.maxlogdegree+1, self.hdim)
 
         if norel:
             self.cat_rel = False
@@ -251,6 +258,14 @@ class ResRGATCell(torch.nn.Module):
         queries = nodes.data["h"]
         keys, values = nodes.mailbox["msg"], nodes.mailbox["hs"]
         red = self.attention(queries, keys, values)
+
+        if self.use_logdegree:
+            degree = keys.size(1)
+            logdegree = math.log(degree+1) * self.logdegree_mult
+            logdegree = min(logdegree, self.maxlogdegree)
+            logdegree = round(logdegree)
+            logdegree_emb = self.degree_emb(torch.tensor([logdegree], device=keys.device))
+            red = red + logdegree_emb
         if self.skipatt:
             red = red + nodes.data["h"]
             red = self.ln_att(red)

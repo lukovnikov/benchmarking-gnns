@@ -171,7 +171,7 @@ def train_val_pipeline(MODEL_NAME, dataset, params, net_params, dirs):
     try:
         with tqdm(range(params['epochs'])) as t:
             for epoch in t:
-
+                print("")
                 t.set_description('Epoch %d' % epoch)
 
                 start = time.time()
@@ -448,6 +448,8 @@ def main():
 
     net_params['total_param'] = view_model_param(MODEL_NAME, net_params)
 
+    if not isinstance(params["seed"], list):
+        params["seed"] = [params["seed"]]
     if isinstance(params['seed'], list):        # run for all the seeds:
         print(f"running for seeds: {params['seed']}")
         for seed in params['seed']:

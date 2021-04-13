@@ -4,7 +4,7 @@
         "id": 0
     },
     
-    "model": "ResRGAT",
+    "model": "RelTM",
     "dataset": "ZINC",
     
     "out_dir": "out/molecules_graph_regression/",
@@ -23,7 +23,8 @@
     },
     
     "net_params": {
-        "L": 16,
+        "L": 2,
+        "numlayers": 8,
         "hidden_dim": 99,
         "out_dim": 99,
         "edge_feat": true,
@@ -33,9 +34,6 @@
         "batch_norm": true,
         "pos_enc": false,
         "n_heads": 3,
-        "use_gate": false,
-        "skipatt": false,
-        "use_sgru": true,
-        "use_logdegree": false
+        "use_gate": false
     }
 }

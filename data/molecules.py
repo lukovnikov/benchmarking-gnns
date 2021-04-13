@@ -8,6 +8,7 @@ import numpy as np
 import csv
 
 import dgl
+import networkx as nx
 
 from scipy import sparse as sp
 import numpy as np
@@ -15,8 +16,7 @@ import numpy as np
 # *NOTE
 # The dataset pickle and index files are in ./zinc_molecules/ dir
 # [<split>.pickle and <split>.index; for split 'train', 'val' and 'test']
-
-
+from tqdm import tqdm
 
 
 class MoleculeDGL(torch.utils.data.Dataset):
@@ -168,6 +168,22 @@ def positional_encoding(g, pos_enc_dim):
     return g
 
 
+def compute_centralities(g:dgl.DGLGraph):
+    nxg = g.to_networkx()
+    centralities = nx.closeness_centrality(nxg)
+    # print(centralities)
+    maxcentrality = max([c[1] for c in centralities.items()])
+    iscentral = {k: v==maxcentrality for k, v in centralities.items()}
+    g.ndata["centr"] = torch.zeros(g.number_of_nodes())
+    g.ndata["iscentr"] = torch.zeros(g.number_of_nodes(), dtype=torch.long)
+    for k, v in centralities.items():
+        g.ndata["centr"][k] = v
+        g.ndata["iscentr"][k] = iscentral[k]
+
+    # print(g.ndata["centr"])
+    # print(g.ndata["iscentr"])
+    return g
+
 
 class MoleculeDataset(torch.utils.data.Dataset):
 
@@ -179,7 +195,10 @@ class MoleculeDataset(torch.utils.data.Dataset):
         print("[I] Loading dataset %s..." % (name))
         self.name = name
         data_dir = 'data/molecules/'
-        with open(data_dir+name+'.pkl',"rb") as f:
+        fn = data_dir + name + "withcentr.pkl"
+        if not os.path.exists(fn):
+            fn = data_dir+name+'.pkl'
+        with open(fn, "rb") as f:
             f = pickle.load(f)
             self.train = f[0]
             self.val = f[1]
@@ -189,6 +208,40 @@ class MoleculeDataset(torch.utils.data.Dataset):
         print('train, test, val sizes :',len(self.train),len(self.test),len(self.val))
         print("[I] Finished loading.")
         print("[I] Data load time: {:.4f}s".format(time.time()-start))
+
+        dostats = False
+        if dostats:
+            numnodeses = []
+            numedgeses = []
+            diameters = []
+            for g in tqdm(self.train.graph_lists):
+                nxg = g.to_networkx()
+                if nx.number_strongly_connected_components(nxg) > 1:
+                    print(nx.number_strongly_connected_components(nxg))
+                numnodeses.append(g.number_of_nodes())
+                numedgeses.append(g.number_of_edges())
+                diameters.append(nx.diameter(nxg))
+
+            print(f"Max, Avg (+- std) number of nodes: {max(numnodeses)}, {np.mean(numnodeses):.2f} (+-{np.std(numnodeses):.2f})")
+            print(f"Max, Avg (+- std) number of edges: {max(numedgeses)}, {np.mean(numedgeses):.2f} (+-{np.std(numedgeses):.2f})")
+            print(f"Max, Avg (+- std) diameter: {max(diameters)}, {np.mean(diameters):.2f} (+-{np.std(diameters):.2f})")
+
+        if "centr" not in self.train.graph_lists[0].ndata:
+            print("computing centralities")
+            for g in tqdm(self.train.graph_lists):
+                compute_centralities(g)
+            for g in tqdm(self.val.graph_lists):
+                compute_centralities(g)
+            for g in tqdm(self.test.graph_lists):
+                compute_centralities(g)
+                # nx.closeness_centrality(g.to_networkx())
+
+            print("dumping")
+            with open(data_dir+name+"withcentr.pkl", "wb") as f:
+                pickle.dump((self.train, self.val, self.test, self.num_atom_type, self.num_bond_type), f)
+            print("dumped")
+
+        print("centralities were already there")
 
 
     # form a mini batch from a given list of samples = [(graph, label) pairs]

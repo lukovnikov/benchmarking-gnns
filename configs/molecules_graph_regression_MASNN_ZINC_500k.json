@@ -4,18 +4,18 @@
         "id": 0
     },
     
-    "model": "ResRGAT",
+    "model": "MASNN",
     "dataset": "ZINC",
     
     "out_dir": "out/molecules_graph_regression/",
     
     "params": {
-        "seed": [41, 862456, 87646464],
+        "seed": 41,
         "epochs": 1000,
         "batch_size": 128,
         "init_lr": 0.0005,
         "lr_reduce_factor": 0.5,
-        "lr_schedule_patience": 20,
+        "lr_schedule_patience": 5,
         "min_lr": 1e-5,
         "weight_decay": 0.0,
         "print_epoch_interval": 5,
@@ -23,19 +23,18 @@
     },
     
     "net_params": {
-        "L": 16,
-        "hidden_dim": 99,
-        "out_dim": 99,
+        "L": 2,
+        "numsublayers": 4,
+        "numlayers": 2,
+        "numechos": 2,
+        "hidden_dim": 80,
+        "out_dim": 80,
         "edge_feat": true,
-        "readout": "sum",
-        "in_feat_dropout": 0.1,
-        "dropout": 0.1,
+        "readout": "max",
+        "dropout": 0.0,
         "batch_norm": true,
         "pos_enc": false,
-        "n_heads": 3,
-        "use_gate": false,
-        "skipatt": false,
-        "use_sgru": true,
-        "use_logdegree": false
+        "n_heads": 2,
+        "use_sgru": false
     }
 }

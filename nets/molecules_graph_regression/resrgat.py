@@ -5,6 +5,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 import dgl
+import networkx as nx
 
 from layers.resrgat_layer import ResRGATCell
 
@@ -137,7 +138,7 @@ class ResRGATNet(torch.nn.Module):
         self.in_feat_dropout = nn.Dropout(dropoutemb)
 
         self.layers = torch.nn.ModuleList([
-            ResRGATCell(self.hdim, numrels=1, numheads=numheads,
+            ResRGATCell(self.hdim, numrels=10, numheads=numheads,
                       dropout=dropout, dropout_red=dropout_red, dropout_attn=dropout_attn,
                       dropout_act=0.,
                       rdim=rdim, usevallin=usevallin, norel=self.norel,
@@ -159,7 +160,7 @@ class ResRGATNet(torch.nn.Module):
         extra_e = torch.ones(h.size(0), device=e.device, dtype=e.dtype) * self.self_edge_id
         e = torch.cat([e, extra_e], 0)
         nodeids = torch.arange(h.size(0), dtype=h.dtype, device=h.device)
-        g.add_edges(nodeids, nodeids)
+        g.add_edges(nodeids, nodeids, data={"feat": torch.ones_like(nodeids, dtype=torch.long) * self.self_edge_id})
         # input embedding
         h = self.embedding_h(h)
         h = self.in_feat_dropout(h)
@@ -172,6 +173,7 @@ class ResRGATNet(torch.nn.Module):
 
         g.ndata["h"] = h
         g.edata["emb"] = e
+        g.edata["id"] = g.edata["feat"]
 
         # convnets
         for layer in self.layers:
